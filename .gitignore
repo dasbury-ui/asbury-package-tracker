@@ -1,0 +1,15 @@
+# Locally generated preview data. The real data only ever exists on the
+# gh-pages branch, written by the workflow.
+web/data/
+
+# Never commit credentials. Nothing here should exist, but belt and braces.
+*.key
+*.pem
+service-account*.json
+.env
+.env.*
+
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

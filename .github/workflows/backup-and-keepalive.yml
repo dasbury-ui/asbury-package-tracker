@@ -1,0 +1,68 @@
+name: Backup and keepalive
+
+# Two jobs that both matter and are cheap:
+#
+# 1. BACKUP. The encrypted state lives on a force-pushed branch with no
+#    history, so there is nothing to roll back to if it is ever corrupted.
+#    This takes a weekly copy as a build artifact, retained 90 days. Restoring
+#    is a file copy; see documentation/OPERATIONS.md.
+#
+# 2. KEEPALIVE. GitHub disables scheduled workflows on a public repository
+#    after 60 days with no repository activity. The tracker pushes to
+#    gh-pages constantly, which is activity, but this writes a dated line to
+#    the default branch once a week so the timer can never run down even if
+#    the tracker has been failing.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: publish
+
+      - name: Collect the encrypted state
+        id: collect
+        run: |
+          mkdir -p backup
+          if [ -f publish/data/packages.enc.json ]; then
+            cp publish/data/packages.enc.json backup/
+            cp publish/data/health.json backup/ 2>/dev/null || true
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No state to back up yet."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the restore point
+        if: steps.collect.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-backup-${{ github.run_id }}
+          path: backup/
+          retention-days: 90
+
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Touch the heartbeat file
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > .keepalive
+          git config user.name  "asbury-package-tracker"
+          git config user.email "actions@users.noreply.github.com"
+          git add .keepalive
+          git diff --cached --quiet || git commit -m "keepalive: keep scheduled workflows enabled"
+          git push

@@ -1,0 +1,19 @@
+{
+  "name": "asbury-package-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Watches every Asbury mailbox, tracks every package to delivery against authoritative carrier APIs, and shows it on an iPhone. Zero cost, zero maintenance.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "track": "node src/index.mjs",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "setup": "node setup/setup.mjs",
+    "doctor": "node setup/doctor.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "license": "UNLICENSED"
+}

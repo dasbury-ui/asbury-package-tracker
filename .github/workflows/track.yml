@@ -1,0 +1,144 @@
+name: Track packages
+
+# WHY THIS SHAPE
+# --------------
+# Code lives on `main`. Encrypted state and the published app live on an
+# orphan `gh-pages` branch that is force-pushed as a single commit every run.
+# That keeps the repository a constant size forever, instead of accumulating
+# ~35,000 commits a year, while still giving GitHub Pages something to serve.
+#
+# Scheduled runs on GitHub are best-effort: GitHub delays them under load and
+# does not guarantee punctuality. The app shows the true age of the last run
+# rather than implying it is always current.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      full_rescan:
+        description: 'Ignore mailbox cursors and rescan the lookback window'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tracker
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # Does state already exist? Answering this BEFORE the checkout is what
+      # stops a transient checkout failure from force-pushing an empty state
+      # over real history.
+      - name: Does published state exist?
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/branches/gh-pages" >/dev/null 2>&1; then
+            echo "branch=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=false" >> "$GITHUB_OUTPUT"
+            echo "No gh-pages branch yet - this is a first run."
+          fi
+
+      - name: Check out published state
+        id: fetch_state
+        if: steps.existing.outputs.branch == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: publish
+
+      - name: Refuse to run if existing state could not be read
+        if: steps.existing.outputs.branch == 'true' && steps.fetch_state.outcome != 'success'
+        run: |
+          echo "::error::gh-pages exists but could not be checked out."
+          echo "Refusing to continue, because publishing now would force-push an"
+          echo "empty state over the real one. See documentation/OPERATIONS.md."
+          exit 1
+
+      - name: Prepare publish directory
+        run: |
+          mkdir -p publish/data
+          # Ship the current app shell alongside the data.
+          cp -r web/. publish/
+          # Pages must not run Jekyll over these files.
+          touch publish/.nojekyll
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run tracker
+        env:
+          DATA_DIR: publish/data
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_ADMIN_SUBJECT: ${{ vars.GOOGLE_ADMIN_SUBJECT }}
+          GOOGLE_DOMAIN: ${{ vars.GOOGLE_DOMAIN }}
+          GOOGLE_MAILBOXES: ${{ vars.GOOGLE_MAILBOXES }}
+          PERSONAL_GMAIL_ADDRESS: ${{ vars.PERSONAL_GMAIL_ADDRESS }}
+          PERSONAL_GMAIL_CLIENT_ID: ${{ secrets.PERSONAL_GMAIL_CLIENT_ID }}
+          PERSONAL_GMAIL_CLIENT_SECRET: ${{ secrets.PERSONAL_GMAIL_CLIENT_SECRET }}
+          PERSONAL_GMAIL_REFRESH_TOKEN: ${{ secrets.PERSONAL_GMAIL_REFRESH_TOKEN }}
+          UPS_CLIENT_ID: ${{ secrets.UPS_CLIENT_ID }}
+          UPS_CLIENT_SECRET: ${{ secrets.UPS_CLIENT_SECRET }}
+          FEDEX_CLIENT_ID: ${{ secrets.FEDEX_CLIENT_ID }}
+          FEDEX_CLIENT_SECRET: ${{ secrets.FEDEX_CLIENT_SECRET }}
+          USPS_CLIENT_ID: ${{ secrets.USPS_CLIENT_ID }}
+          USPS_CLIENT_SECRET: ${{ secrets.USPS_CLIENT_SECRET }}
+          DHL_API_KEY: ${{ secrets.DHL_API_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT }}
+          SCAN_LOOKBACK_DAYS: ${{ vars.SCAN_LOOKBACK_DAYS }}
+          FULL_RESCAN: ${{ inputs.full_rescan }}
+        run: node src/index.mjs
+
+      - name: Publish app and state
+        if: always()
+        run: |
+          set -e
+          if [ ! -f publish/data/health.json ]; then
+            echo "No health file was produced; nothing to publish."
+            exit 0
+          fi
+          # Write the VAPID public key where the app can read it. It is a
+          # public key by definition and is safe to publish.
+          printf '%s' '${{ secrets.VAPID_PUBLIC_KEY }}' > publish/data/vapid-public-key.txt
+          cd publish
+          git init -q
+          git config user.name  "asbury-package-tracker"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout -q -b gh-pages
+          git add -A
+          git commit -q -m "state $(date -u +%Y-%m-%dT%H:%M:%SZ)" || exit 0
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            gh-pages
+
+      - name: Report failure clearly in the run summary
+        if: failure()
+        run: |
+          {
+            echo "## Tracker run failed"
+            echo ""
+            echo "The app will show this feed as STALE within the hour."
+            echo ""
+            if [ -f publish/data/health.json ]; then
+              echo '```json'
+              cat publish/data/health.json
+              echo '```'
+            fi
+            echo "See documentation/OPERATIONS.md for the recovery steps."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,84 @@
+name: Register a phone for notifications
+
+# Registering an iPhone for Web Push needs the subscription that Safari
+# generates ON THE PHONE. There is no free server to POST it to, so the app
+# hands it over through a GitHub issue instead - one tap from the phone.
+#
+# Two things make that safe:
+#   1. The app encrypts the subscription with the same key as the state, so
+#      the public issue body contains only ciphertext.
+#   2. This workflow ignores issues opened by anyone other than the repository
+#      owner, so a stranger cannot inject a subscription.
+# The issue is closed automatically once it has been consumed.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: tracker
+  cancel-in-progress: false
+
+jobs:
+  register:
+    if: startsWith(github.event.issue.title, 'register-phone') && github.event.issue.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Unlike the tracker, this job has nothing useful to do without existing
+      # state, so it simply requires the branch rather than risking a
+      # force-push of an empty state over the real one.
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: publish
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Add the subscription to the encrypted state
+        id: register
+        env:
+          DATA_DIR: publish/data
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: node src/register-phone.mjs
+
+      - name: Publish the updated state
+        if: steps.register.outputs.changed == 'true'
+        run: |
+          set -e
+          cp -r web/. publish/
+          touch publish/.nojekyll
+          cd publish
+          git init -q
+          git config user.name  "asbury-package-tracker"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout -q -b gh-pages
+          git add -A
+          git commit -q -m "register phone $(date -u +%Y-%m-%dT%H:%M:%SZ)" || exit 0
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            gh-pages
+
+      - name: Close the issue and confirm
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Passed through the environment, not interpolated into the script.
+          # The message is derived from decrypted payload fields, so treating
+          # it as data rather than shell source is the only safe handling.
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RESULT_MESSAGE: ${{ steps.register.outputs.message }}
+        run: |
+          MESSAGE="${RESULT_MESSAGE:-Could not register this phone. Check the workflow run.}"
+          gh issue comment "$ISSUE_NUMBER" --body "$MESSAGE"
+          gh issue close "$ISSUE_NUMBER"

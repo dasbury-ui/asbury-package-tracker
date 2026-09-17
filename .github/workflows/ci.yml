@@ -1,0 +1,38 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # 22, not 20: --test glob patterns need Node 21+. On 20 the glob is
+          # treated as a literal path and the suite silently does not run.
+          node-version: '22'
+      - name: Run the test suite
+        run: node --test "test/**/*.test.mjs"
+      - name: Check that the tracker loads without credentials
+        # Catches import errors and syntax faults that tests might miss, and
+        # proves the failure path writes a health file instead of dying silently.
+        run: |
+          set +e
+          DATA_DIR=/tmp/ci-data node src/index.mjs
+          code=$?
+          set -e
+          if [ ! -f /tmp/ci-data/health.json ]; then
+            echo "FAIL: a failing run must still leave a health file behind"
+            exit 1
+          fi
+          echo "Exit code $code with a health file written, as designed."
+          cat /tmp/ci-data/health.json
