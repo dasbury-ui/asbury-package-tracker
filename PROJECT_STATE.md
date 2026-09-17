@@ -1,158 +1,216 @@
 # PROJECT STATE — Asbury Package Tracker
 
-**Revision 1.0** · Last updated 16 September 2026 · Owner: Derek Asbury
+**Revision 2.0** · Last updated 17 September 2026, 03:40 UTC · Owner: Derek Asbury
 
-This file exists so another session, agent or person can pick the project up
-without reconstructing it from chat history.
+Resume from this file. Nothing here needs reconstructing from chat history.
+
+---
+
+## Status in one line
+
+**The engine is LIVE, green, and running unattended every 15 minutes.** The app
+is published and showing 8 real packages. Mail reading by the runner itself is
+blocked on a Google passkey; everything else works.
+
+| Thing | Where |
+| --- | --- |
+| App | https://dasbury-ui.github.io/asbury-package-tracker/ |
+| Repo | https://github.com/dasbury-ui/asbury-package-tracker |
+| Last green run | https://github.com/dasbury-ui/asbury-package-tracker/actions/runs/35178610868 |
+| Actions | https://github.com/dasbury-ui/asbury-package-tracker/actions |
+| Working copy | `C:\Users\dasbu\Projects\asbury-package-tracker` |
 
 ---
 
 ## Objective
 
 Watch every Asbury mailbox, detect every shipment tracking number, track each
-package to delivery against authoritative carrier APIs, and show current
-status in an iPhone app that stays current on its own. Zero cost. Zero
-maintenance by Derek.
+package to delivery against authoritative carrier APIs, and show current status
+in an iPhone app that stays current on its own. Zero cost. No maintenance.
 
-## Business problem
+## What is live right now
 
-Packages arrive at Asbury from many suppliers across several mailboxes. There
-is no single view of what is coming, what is late, and what has landed. The
-cost is time spent hunting through email and chasing suppliers, and shop work
-stalling on hardware nobody knew was delayed.
+- **Runner.** GitHub Actions, `track.yml`, cron `*/15 * * * *`, workflow state
+  `active`. Public repo, so Actions minutes are unmetered and Pages is free.
+- **State.** AES-256-GCM, committed to the `gh-pages` orphan branch as a single
+  force-pushed commit each run, so the repo stays a constant size.
+- **App.** PWA on GitHub Pages. Verified: all assets HTTP 200, `health.json`
+  readable without the key, `view.enc.json` decrypts with the real STATE_KEY.
+- **Notifications.** VAPID keys generated and stored; public key published.
+  No phone registered yet, so nothing is being sent.
+- **Secrets stored:** `STATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`.
+- **Variables set:** `VAPID_SUBJECT`, `GOOGLE_DOMAIN`, `GOOGLE_ADMIN_SUBJECT`,
+  `PERSONAL_GMAIL_ADDRESS`.
 
-## Approved scope
+### The 8 packages currently in the app
 
-**In:** parcel carriers (UPS, FedEx, USPS, DHL, plus detection of Amazon
-Logistics and OnTrac); all `@asburycabinets.com` mailboxes and
-`asburyderek@gmail.com`; an installable iPhone PWA with Web Push.
+Detected by the real parser from real messages, backfilled via
+`setup/seed-from-emails.mjs`, then republished by a real green workflow run.
+All are UNCONFIRMED, correctly, because no carrier credentials exist yet.
 
-**Out:** LTL/freight tracking; purchasing or PO matching; inventory; any
-write access to email; anything requiring payment.
+| Number | Carrier candidate | Admitted on | Source |
+| --- | --- | --- | --- |
+| `1Z1827260366660207` | UPS | CHECKSUM | ColorKam |
+| `1Z2RV8680334774721` | UPS | CHECKSUM | Columbia Paint |
+| `533346686946` | FedEx | CARRIER_LINK | ColorKam |
+| `877225383772` | FedEx | CARRIER_LINK | Häfele |
+| `540851945310` | FedEx | LABELLED | Mockett |
+| `540851945375` | FedEx | LABELLED | Mockett |
+| `1000771428` | DHL | LABELLED | Mockett — **false positive** |
+| `1000771429` | DHL | LABELLED | Mockett — **false positive** |
 
-## Current state — MILESTONE 1 VERIFIED COMPLETE, NOT YET DEPLOYED
+## Capabilities: live vs dormant
 
-The code is built and tested. It has **never run against a real mailbox or a
-real carrier API**, because that requires credentials only Derek can create.
-
-| Milestone | Status |
-| --- | --- |
-| M1 Build and offline verification | **VERIFIED COMPLETE** |
-| M2 Credentials and first live run | **BLOCKED** — needs Derek (see below) |
-| M3 Live accuracy validation over 2 weeks | Not started; blocked by M2 |
-
-### M1 acceptance criteria and evidence
-
-| Criterion | Evidence |
-| --- | --- |
-| Check digits verified, not assumed | 55 tests pass; UPS verified against `1Z999AA10123456784`, S10 against published vectors, all algorithms round-trip property-tested |
-| Web Push encryption correct | Byte-for-byte match against the RFC 8291 §5 published test vector |
-| No plaintext business data published | End-to-end test asserts tracking numbers, vendor names and mailboxes are absent from the written bytes |
-| Email text never sets delivery | End-to-end test feeds "was delivered at 2pm" and asserts the package is NOT delivered |
-| One number in 3 emails = 1 package | Asserted in the end-to-end test |
-| Failures are visible, never silent | Verified by running with no credentials: exit 1, health file written with the reason |
-| Free-tier caps enforced | Budget tests assert exhaustion is reported, not exceeded |
-| App renders on a phone-sized screen | Rendered in Chrome against sample data; board, health banner and cards confirmed |
-
-**Test command:** `node --test "test/**/*.test.mjs"` → **65 pass, 0 fail.**
-
-### Independent QA pass — completed, defects fixed
-
-An independent reviewer audited the source against the accuracy rule and
-found 2 critical and 5 major defects. All are fixed and each has a regression
-test in `test/qa-regressions.test.mjs`.
-
-| Severity | Defect | Fix |
+| Capability | State | Why |
 | --- | --- | --- |
-| CRITICAL | The app displayed a carrier guessed from a number pattern as though it were confirmed, with a "carrier site" link — the exact rule the system promises to keep | `web/app.js` now reads `carrierIsConfirmed`; an unconfirmed carrier renders as "CARRIER UNKNOWN — possibly X" and the link is reworded as a suggestion |
-| CRITICAL | Employee mailbox addresses were written to the plaintext `health.json`, published on Pages, and echoed into public Actions logs | `maskEmail()` applied at every site, plus a catch-all address redaction in `log.mjs` |
-| MAJOR | `h.runUrl` from the unsigned plaintext health file was injected into `innerHTML` unescaped — XSS on the one unauthenticated input | Escaped and restricted to a `github.com` URL |
-| MAJOR | A transient `gh-pages` checkout failure would force-push empty state over real state | The workflow now checks whether the branch exists first and refuses to publish if it exists but could not be read |
-| MAJOR | Untrusted step output interpolated into a workflow `run:` block (script injection, owner-gated) | Passed via `env:` and quoted |
-| MAJOR | Bare-digit checksums admitted packages with no context — ~1 phone number in 7 passes DHL's mod 7 | `requiresContext` formats now need a carrier link or a tracking label as well |
-| MAJOR | Push-host allowlist used a bare suffix match, so `notweb.push.apple.com` would pass | Exact host or true subdomain match |
+| Runner / scheduling | **LIVE** | — |
+| Encrypted state + publishing | **LIVE** | — |
+| PWA | **LIVE** | — |
+| Push signing keys | **LIVE** | No phone registered yet |
+| Company mailboxes | DORMANT | No `GOOGLE_SERVICE_ACCOUNT_JSON` — blocked, see below |
+| Personal Gmail | DORMANT | No `PERSONAL_GMAIL_*` OAuth secrets |
+| UPS | DORMANT | No developer credentials; portal showed a login form |
+| FedEx | DORMANT | No developer credentials; not signed in |
+| DHL | DORMANT | No API key; portal showed a login form |
+| USPS | DORMANT | No credentials — and see the recipient limitation in ARCHITECTURE.md §3.1 |
 
-Minor findings (unescaped low-risk interpolations, a missing reason string, a
-FedEx budget double-charge on batch failure, CI pinned to a Node version
-whose `--test` does not accept globs, raw email subjects reaching
-notification text, a missing filter guard) were also fixed.
+**Hot activation is verified, not assumed.** A throwaway UPS key was stored,
+the very next run reported UPS live and stayed green, dormant count went 6→5,
+and the key was removed. Adding any credential takes effect on the next
+scheduled run. No re-setup, no re-run, no redeploy.
 
-## BLOCKED ON — the unblock condition for M2
+## THE BLOCKER
 
-Derek runs `node setup/setup.mjs` and completes the five account actions
-listed in `START-HERE.md`. Nothing else is outstanding. Everything the wizard
-can do without him is already automated.
+Two separate obstacles, both on the Google side, both requiring Derek in person:
 
-Partial completion is fine and expected: with GitHub plus any one mailbox
-source the system runs and reports the rest as not-configured.
+1. **Passkey challenge on `dasbury@asburycabinets.com`.** Google re-challenges
+   for the Cloud Console and demands a passkey — fingerprint, face, or screen
+   lock. This is a biometric on his physical device. No credential, approval,
+   or workaround crosses it. It is not in 1Password.
+2. **Chrome extension has no site permission for `console.cloud.google.com`.**
+   Even once authenticated, the assistant cannot read or click that page until
+   the extension is allowed on that domain. This one is a single click and is
+   not an authentication problem.
 
-## Decisions made, and why
+Both must clear before the service account, its JSON key, and Workspace
+domain-wide delegation can be created.
 
-| Decision | Reason |
-| --- | --- |
-| Public repo + encrypted data | Pages and unmetered Actions minutes are free only on public repos; encryption preserves confidentiality. Chosen over a private repo, which gets 2,000 min/month and no Pages on the free plan |
-| State on a force-pushed orphan branch | Avoids ~35,000 commits and several GB per year |
-| Zero npm dependencies | No supply-chain surface, no install time, nothing upstream can break |
-| Wrote checksum algorithms rather than vendoring `jkeen/tracking_number_data` | Licence could not be verified at build time; contract requires a verified licence before adoption |
-| USPS client implemented despite the access restriction | Derek may own the MID on outbound parcels, and the API's answer should decide, not our assumption |
-| Carrier wins over checksum on disagreement | The carrier is authoritative; our arithmetic is not |
-| A failed lookup does not revoke a confirmed status | Discarding a true "delivered" over an HTTP 500 is less accurate, not more |
-| Push registration via an encrypted GitHub issue | No free server exists to receive the subscription; the body is ciphertext and non-owner issues are ignored |
+Also checked and ruled out: `gcloud` CLI is not installed; the
+`plugin:small-business:gmail` connector is unauthorized. The
+`mcp__f2e3b2a6-…` Gmail connector IS authorized and was used to read real mail
+this session, but it is an assistant-session connector and cannot power the
+headless runner.
 
-## Assumptions
+## Known false positives — expected, monitored, no action
 
-1. Derek's GitHub account is on the Free plan. *(If it is Pro, a private repo
-   with Pages becomes possible and the encryption could be relaxed — not
-   recommended; it works and costs nothing.)*
-2. Most inbound parcels are UPS, FedEx and DHL. USPS coverage will be poor
-   and Amazon Logistics will not be confirmable.
-3. Parcel volume is low enough that DHL's 250 calls/day is sufficient.
-   *Unvalidated until M3.*
-4. `SCAN_LOOKBACK_DAYS=14` is long enough to catch a package between a
-   shipping email and delivery.
+`1000771428` and `1000771429` are Doug Mockett **purchase-order numbers**,
+admitted as possible DHL waybills. They are 10-digit strings that satisfy DHL's
+mod-7 check and sit inside a flattened table row that reads
+`…Purchase Order Tracking Number 1900936 458148 09/14/26 1000771428 540851945310…`,
+so "Purchase Order" and "Tracking Number" both fall inside the same context
+window. A text parser cannot separate them reliably.
 
-## Risks
+**They will age out on their own.** They display as UNCONFIRMED and never as a
+status. Once DHL credentials exist, DHL will return no record, and after 96
+hours `markGivenUp()` flags them permanently unconfirmed and stops spending
+API calls on them. This is the "carrier API decides" architecture working as
+designed. Do not hand-tune the parser for this case.
 
-| Risk | Severity | Mitigation |
-| --- | --- | --- |
-| USPS parcels largely unconfirmable | High, accepted | Shown honestly as UNCONFIRMED with a link. No free fix exists |
-| Carrier APIs change without notice | Medium | Unmapped status codes yield UNKNOWN + verbatim carrier text and a warning in the log, rather than a wrong status |
-| DHL daily cap reached in a busy week | Medium | Budget caps at 200/250 and reports; a free upgrade can be requested from DHL |
-| Scheduled workflow disabled at 60 days | Medium | Weekly keepalive commit + the app shows staleness immediately |
-| Checksum variants for rarer FedEx formats may be wrong | Low | Would cause rejection, which is logged as `CHECKSUM_FAILED` and traceable; carrier-link admission provides a second path |
-| Gmail `historyId` expiry causes a scan gap | Low | Detected, logged, and falls back to a dated search |
+## Bugs found and fixed tonight
 
-## Next executable action
+1. **`gh secret set --body-file` does not exist.** That flag is on
+   `gh issue/pr/release create`, not `gh secret set`, which reads the value
+   from stdin when `--body` is omitted. This was the opaque
+   "Could not store STATE_KEY". Fixed in `setup/lib.mjs`; the value still
+   travels on stdin so it never enters argv.
+2. **Re-runs failed with exit 128.** After the first run, `publish/` is a
+   checkout of `gh-pages` carrying its own `.git`, so `git checkout -b gh-pages`
+   hit an already-existing branch. Fixed by removing the inherited `.git`
+   before re-initialising. Confirmed by consecutive green runs.
 
-1. **Derek:** run `node setup/setup.mjs`.
-2. **Then:** `node setup/doctor.mjs` to confirm the first run succeeded.
-3. **Then (M3):** over two weeks, compare what the app shows against what
-   actually arrives at the shop. Specifically check: any package that arrived
-   but never appeared (parser miss — check the decision log), and any package
-   shown UNCONFIRMED whose carrier *is* configured (a resolution gap).
+Earlier in the build: `shell:true` with an args array was re-splitting the
+multi-word `--description` (gh saw 9 args, and it triggered DEP0190). Fixed by
+disabling the shell across the only spawn site in the codebase.
 
-## Backlog — not in scope, recorded so it is not lost
+**Tests: 76 passing**, including 6 that run the real message bodies from
+Derek's inbox through the parser and assert his own phone numbers
+(757-766-1939, 304-237-0205) are never tracked as packages.
 
+## Open items
+
+### Security — do these
+
+- **`C:\Users\dasbu\Projects\STATE_KEY.txt` is plaintext on disk.** It decrypts
+  everything the app publishes. Move it into 1Password and delete the file.
+  It is needed once, to unlock the app on the iPhone.
+- **Delete the throwaway repo `dasbury-ui/asbury-tracker-spawnfix-check`.**
+  Created to verify the `gh repo create` fix against real gh. The token lacks
+  the `delete_repo` scope, so it could not be removed automatically. Either
+  delete it at its Settings page, or
+  `gh auth refresh -h github.com -s delete_repo` then
+  `gh repo delete dasbury-ui/asbury-tracker-spawnfix-check --yes`.
+
+### Temporary workaround — currently DISABLED
+
+A scheduled mail-bridge task exists at:
+
+```
+C:\Users\dasbu\OneDrive\Desktop\Asbury OS\Scheduled\package-tracker-mail-bridge\SKILL.md
+```
+
+It was created as a temporary workaround for the passkey block, to carry mail
+to the tracker while the runner cannot read Gmail itself. **It is DISABLED at
+Derek's request and is not running.**
+
+**Delete it outright once the runner has its own Gmail access.** It is a
+stopgap, not part of the architecture, and leaving a second mail path in place
+after the real one works would be a maintenance trap and a second thing to
+keep secure.
+
+## Overnight behaviour — nothing needs attention
+
+- The workflow runs every 15 minutes and will keep running unattended.
+- Runs will be **green**. With no mailbox credentials the engine goes to
+  standby, publishes, and reports dormant capabilities. Absent credentials are
+  not treated as failures.
+- **Nothing will notify Derek.** No phone is registered for push, so zero
+  notifications can be sent. No email alerts exist.
+- No carrier API calls will be made, so no free-tier budget is consumed.
+- The 8 packages stay visible and unchanged. Nothing expires: the retention
+  rules only archive or purge *delivered* packages, and none are delivered.
+- The 60-day scheduled-workflow timer is not a factor — the tracker pushes to
+  `gh-pages` on every run, plus a weekly keepalive commit to `main`.
+
+## Next executable action when he returns
+
+1. On his machine, open `https://console.cloud.google.com/iam-admin/serviceaccounts`,
+   clear the **passkey** prompt, and allow the Claude Chrome extension on
+   `console.cloud.google.com`. These two are the entire blocker.
+2. Then the assistant can complete, unattended: create the project, enable the
+   Gmail API and Admin SDK, create the service account, generate the JSON key,
+   store it as `GOOGLE_SERVICE_ACCOUNT_JSON`, and add domain-wide delegation
+   with scopes `gmail.readonly` and `admin.directory.user.readonly`.
+3. Within 15 minutes the runner starts reading all `@asburycabinets.com`
+   mailboxes on its own and the backfill becomes unnecessary.
+4. Carriers last, and each needs one 1Password unlock at its portal before app
+   registration: UPS `developer.ups.com`, FedEx `developer.fedex.com`,
+   DHL `developer.dhl.com`. Each key activates confirmation on the next run.
+5. iPhone: open the app URL, unlock once with STATE_KEY, Share → Add to Home
+   Screen, then enable and register notifications.
+
+## Assumptions still unvalidated
+
+- Parcel volume fits DHL's 250 calls/day free tier.
+- `SCAN_LOOKBACK_DAYS=14` is wide enough to catch a package between shipping
+  notice and delivery.
+- Most inbound parcels are UPS/FedEx/DHL. USPS coverage will be poor for
+  inbound (see ARCHITECTURE.md §3.1) and Amazon Logistics is not confirmable.
+
+## Backlog — not in scope
+
+- Carrier webhooks would cut latency to near zero; needs a free HTTPS endpoint,
+  which the zero-cost constraint does not currently provide.
 - Re-evaluate `jkeen/tracking_number_data` if its licence is confirmed
-  permissive; would broaden carrier coverage cheaply.
-- Carrier webhooks (UPS, FedEx and DHL all offer push) would cut latency to
-  near-zero and collapse API usage. Needs a free HTTPS endpoint, which the
-  current zero-cost constraint does not provide.
-- Link packages to purchase orders, so the board says *what* is arriving and
-  not just *who* sent it.
+  permissive; would broaden carrier format coverage cheaply.
+- Link packages to purchase orders so the board says *what* is arriving.
 - Freight/LTL tracking for sheet goods.
-
-## Files
-
-See `documentation/ARCHITECTURE.md` §4 for the runtime diagram.
-
-```
-src/tracking/   checksums, formats, extraction + admission policy
-src/carriers/   ups, fedex, usps, dhl clients + resolution rules
-src/gmail/      service-account and OAuth auth, incremental scanning
-src/            crypto, state, budget, publish, push, index (orchestrator)
-web/            the iPhone PWA
-setup/          setup wizard, doctor, preview, icon generator
-test/           55 tests
-.github/workflows/  track (*/15), ci, backup-and-keepalive, register-phone
-```
