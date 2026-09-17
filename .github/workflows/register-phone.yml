@@ -59,6 +59,9 @@ jobs:
           cp -r web/. publish/
           touch publish/.nojekyll
           cd publish
+          # Same as track.yml: discard the inherited gh-pages history so the
+          # orphan branch stays a single commit.
+          rm -rf .git
           git init -q
           git config user.name  "asbury-package-tracker"
           git config user.email "actions@users.noreply.github.com"

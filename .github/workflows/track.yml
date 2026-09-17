@@ -117,6 +117,11 @@ jobs:
           # public key by definition and is safe to publish.
           printf '%s' '${{ secrets.VAPID_PUBLIC_KEY }}' > publish/data/vapid-public-key.txt
           cd publish
+          # On every run after the first, publish/ is a checkout of gh-pages
+          # and carries its own .git with that branch already present. Drop it
+          # and start a fresh single-commit history: that is the whole point of
+          # the orphan branch, and it keeps the repository a constant size.
+          rm -rf .git
           git init -q
           git config user.name  "asbury-package-tracker"
           git config user.email "actions@users.noreply.github.com"
