@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-09-19T17:21:04.796Z",
+  "finishedAt": "2026-09-19T17:21:04.818Z",
+  "ok": true,
+  "stage": "done",
+  "runUrl": "https://github.com/dasbury-ui/asbury-package-tracker/actions/runs/35457811478",
+  "mailboxes": {
+    "scanned": 0,
+    "failed": 0,
+    "errors": []
+  },
+  "messages": {
+    "examined": 0
+  },
+  "candidates": {
+    "admitted": 0,
+    "rejected": 0
+  },
+  "packages": {
+    "total": 8,
+    "active": 8,
+    "confirmed": 0,
+    "unconfirmed": 8,
+    "delivered": 0
+  },
+  "lookups": {
+    "attempted": 0,
+    "confirmed": 0
+  },
+  "carriers": {
+    "ups": false,
+    "fedex": false,
+    "usps": false,
+    "dhl": false,
+    "amazon": false,
+    "ontrac": false
+  },
+  "budget": {
+    "ups": {
+      "used": 0,
+      "limit": 0,
+      "denied": 0
+    },
+    "fedex": {
+      "used": 0,
+      "limit": 0,
+      "denied": 0
+    },
+    "usps": {
+      "used": 0,
+      "limit": 0,
+      "denied": 0
+    },
+    "dhl": {
+      "used": 0,
+      "limit": 0,
+      "denied": 0
+    }
+  },
+  "push": {
+    "sent": 0,
+    "failed": 0,
+    "subscriptions": 0
+  },
+  "errors": [],
+  "retention": {
+    "archived": 0,
+    "purged": 0
+  },
+  "capabilities": {
+    "workspaceMail": {
+      "live": false,
+      "reason": "No Google service-account key. The @asburycabinets.com mailboxes are not being read.",
+      "unlock": "Add the GOOGLE_SERVICE_ACCOUNT_JSON secret and authorise domain-wide delegation."
+    },
+    "personalMail": {
+      "live": false,
+      "reason": "No personal Gmail OAuth token. That mailbox is not being read.",
+      "unlock": "Add the PERSONAL_GMAIL_* secrets."
+    },
+    "ups": {
+      "live": false,
+      "reason": "No UPS credentials.",
+      "unlock": "Add UPS_CLIENT_ID and UPS_CLIENT_SECRET."
+    },
+    "fedex": {
+      "live": false,
+      "reason": "No FedEx credentials.",
+      "unlock": "Add FEDEX_CLIENT_ID and FEDEX_CLIENT_SECRET."
+    },
+    "dhl": {
+      "live": false,
+      "reason": "No DHL API key.",
+      "unlock": "Add DHL_API_KEY."
+    },
+    "usps": {
+      "live": false,
+      "reason": "No USPS credentials.",
+      "unlock": "Add USPS_CLIENT_ID and USPS_CLIENT_SECRET."
+    },
+    "push": {
+      "live": true,
+      "reason": null,
+      "unlock": null
+    }
+  },
+  "dormant": [
+    {
+      "capability": "workspaceMail",
+      "reason": "No Google service-account key. The @asburycabinets.com mailboxes are not being read.",
+      "unlock": "Add the GOOGLE_SERVICE_ACCOUNT_JSON secret and authorise domain-wide delegation."
+    },
+    {
+      "capability": "personalMail",
+      "reason": "No personal Gmail OAuth token. That mailbox is not being read.",
+      "unlock": "Add the PERSONAL_GMAIL_* secrets."
+    },
+    {
+      "capability": "ups",
+      "reason": "No UPS credentials.",
+      "unlock": "Add UPS_CLIENT_ID and UPS_CLIENT_SECRET."
+    },
+    {
+      "capability": "fedex",
+      "reason": "No FedEx credentials.",
+      "unlock": "Add FEDEX_CLIENT_ID and FEDEX_CLIENT_SECRET."
+    },
+    {
+      "capability": "dhl",
+      "reason": "No DHL API key.",
+      "unlock": "Add DHL_API_KEY."
+    },
+    {
+      "capability": "usps",
+      "reason": "No USPS credentials.",
+      "unlock": "Add USPS_CLIENT_ID and USPS_CLIENT_SECRET."
+    }
+  ],
+  "durationMs": 22
+}
