@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Packages">
+<meta name="theme-color" content="#11161d">
+<title>Asbury Packages</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header id="top">
+  <div class="bar">
+    <h1>Packages</h1>
+    <button id="refresh" class="ghost" aria-label="Refresh">Refresh</button>
+  </div>
+  <div id="health" class="health" role="status" aria-live="polite">Loading…</div>
+  <div id="dormant" class="dormant" hidden></div>
+</header>
+
+<main>
+  <!-- Shown until the app has the decryption key. -->
+  <section id="unlock" hidden>
+    <h2>Unlock</h2>
+    <p class="muted">
+      This app stores nothing readable in public. Paste the key from your setup
+      output once; it stays on this phone.
+    </p>
+    <input id="keyInput" type="password" inputmode="text" autocomplete="off"
+           autocapitalize="off" spellcheck="false" placeholder="State key">
+    <button id="unlockBtn" class="primary">Unlock</button>
+    <p id="unlockError" class="error" hidden></p>
+  </section>
+
+  <section id="board" hidden>
+    <nav class="tabs" role="tablist">
+      <button class="tab is-active" data-filter="active" role="tab">Active</button>
+      <button class="tab" data-filter="problems" role="tab">Needs attention</button>
+      <button class="tab" data-filter="unconfirmed" role="tab">Unconfirmed</button>
+      <button class="tab" data-filter="delivered" role="tab">Delivered</button>
+      <button class="tab" data-filter="all" role="tab">All</button>
+    </nav>
+    <div id="counts" class="counts"></div>
+    <ul id="list" class="list"></ul>
+    <p id="empty" class="muted empty" hidden>Nothing here.</p>
+  </section>
+
+  <section id="settings">
+    <details>
+      <summary>Notifications and diagnostics</summary>
+      <div class="pad">
+        <p id="pushState" class="muted">Checking notification support…</p>
+        <button id="enablePush" class="primary" hidden>Turn on notifications</button>
+        <button id="registerPush" class="primary" hidden>Finish registering this phone</button>
+        <p id="pushHelp" class="muted small"></p>
+        <hr>
+        <button id="showLog" class="ghost">Show parse decisions</button>
+        <pre id="log" class="log" hidden></pre>
+        <hr>
+        <button id="forget" class="ghost danger">Forget key on this phone</button>
+      </div>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <p class="muted small" id="footnote"></p>
+</footer>
+
+<script src="app.js" type="module"></script>
+</body>
+</html>
